@@ -676,7 +676,7 @@ const CSS = `
     transition: border-color 0.15s, color 0.15s;
   }
 
-  .new-col-btn:hover { border-color: #ff0038; color: #fff; }
+  .new-col-btn:hover { border-color: #ff0038; color: #fff; } 
 
   /* Main area */
   .main {
