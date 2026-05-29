@@ -95,7 +95,7 @@ async function loadAllCollections() {
 /* ── Logo ─────────────────────────────────────────────── */
 function WASLogo() {
   return (
-    <img src="/src/logo.png" alt="We Are Social" style={{ width: "100%", maxWidth: "160px", display: "block" }} />
+    <img src="./logo.png" alt="We Are Social" style={{ width: "100%", maxWidth: "160px", display: "block" }} />
   );
 }
 
@@ -462,7 +462,7 @@ export default function App() {
         {/* ── Sidebar ── */}
         <aside className="sidebar">
           <div className="sidebar-logo">
-            <div className="logo-text">we are<br />social.</div>
+            <WASLogo />
           </div>
 
           <div className="sidebar-title">THE LINK UP</div>
@@ -676,7 +676,7 @@ const CSS = `
     transition: border-color 0.15s, color 0.15s;
   }
 
-  .new-col-btn:hover { border-color: #ff0038; color: #fff; } 
+  .new-col-btn:hover { border-color: #ff0038; color: #fff; }
 
   /* Main area */
   .main {
