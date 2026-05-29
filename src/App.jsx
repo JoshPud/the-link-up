@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
+import logoUrl from "./logo.png";
 
 /* ── Helpers ─────────────────────────────────────────── */
 
@@ -95,7 +96,7 @@ async function loadAllCollections() {
 /* ── Logo ─────────────────────────────────────────────── */
 function WASLogo() {
   return (
-    <img src="./logo.png" alt="We Are Social" style={{ width: "100%", maxWidth: "160px", display: "block" }} />
+    <img src={logoUrl} alt="We Are Social" style={{ width: "100%", maxWidth: "160px", display: "block" }} />
   );
 }
 
