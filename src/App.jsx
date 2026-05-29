@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { supabase } from "./supabase";
 
 /* ── Helpers ─────────────────────────────────────────── */
 
@@ -58,38 +59,37 @@ async function fetchMeta(url) {
   } catch { return { source: "failed" }; }
 }
 
-/* ── Storage (shared via window.storage) ─────────────── */
+/* ── Storage (Supabase) ───────────────────────────────── */
 
 async function loadAllLinks() {
-  try {
-    const result = await window.storage.list("lnk", true);
-    if (!result) return [];
-    const items = await Promise.all(
-      result.keys.map(async (key) => {
-        try {
-          const r = await window.storage.get(key, true);
-          return r ? JSON.parse(r.value) : null;
-        } catch { return null; }
-      })
-    );
-    return items.filter(Boolean).sort((a, b) => b.addedAt - a.addedAt);
-  } catch { return []; }
+  const { data, error } = await supabase
+    .from("links")
+    .select("*")
+    .order("added_at", { ascending: false });
+  if (error) { console.error(error); return []; }
+  return (data || []).map(row => ({
+    id: row.id,
+    url: row.url,
+    title: row.title,
+    description: row.description,
+    image: row.image,
+    collections: row.collections || [],
+    addedAt: row.added_at,
+  }));
 }
 
 async function loadAllCollections() {
-  try {
-    const result = await window.storage.list("col", true);
-    if (!result) return [];
-    const items = await Promise.all(
-      result.keys.map(async (key) => {
-        try {
-          const r = await window.storage.get(key, true);
-          return r ? JSON.parse(r.value) : null;
-        } catch { return null; }
-      })
-    );
-    return items.filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
-  } catch { return []; }
+  const { data, error } = await supabase
+    .from("collections")
+    .select("*")
+    .order("name", { ascending: true });
+  if (error) { console.error(error); return []; }
+  return (data || []).map(row => ({
+    id: row.id,
+    name: row.name,
+    color: row.color,
+    createdAt: row.created_at,
+  }));
 }
 
 /* ── Logo SVG (We Are Social, all white) ─────────────── */
@@ -346,8 +346,12 @@ export default function App() {
 
   useEffect(() => {
     loadAll();
-    const interval = setInterval(loadAll, 8000);
-    return () => clearInterval(interval);
+    // Realtime — update instantly when anyone adds/removes links or collections
+    const channel = supabase.channel("db-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "links" }, loadAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "collections" }, loadAll)
+      .subscribe();
+    return () => supabase.removeChannel(channel);
   }, []);
 
   async function loadAll() {
@@ -371,21 +375,26 @@ export default function App() {
   }
 
   async function handleSave({ title, description, image, collections: cols }) {
-    const key = `lnk${Date.now()}${Math.random().toString(36).slice(2)}`;
-    const item = {
-      id: key,
-      url: modal.url, title, description, image,
+    const id = `lnk${Date.now()}${Math.random().toString(36).slice(2)}`;
+    const now = Date.now();
+    const { error } = await supabase.from("links").insert({
+      id,
+      url: modal.url,
+      title,
+      description,
+      image,
       collections: cols || [],
-      addedAt: Date.now(),
-    };
-    try { await window.storage.set(key, JSON.stringify(item), true); } catch {}
-    setLinks(prev => [item, ...prev]);
+      added_at: now,
+    });
+    if (error) { console.error(error); showToast("Something went wrong"); return; }
+    setLinks(prev => [{ id, url: modal.url, title, description, image, collections: cols || [], addedAt: now }, ...prev]);
     setModal(null);
     showToast("Saved ✓");
   }
 
   async function handleDelete(id) {
-    try { await window.storage.delete(id, true); } catch {}
+    const { error } = await supabase.from("links").delete().eq("id", id);
+    if (error) { console.error(error); return; }
     setLinks(prev => prev.filter(l => l.id !== id));
     showToast("Removed");
   }
@@ -393,38 +402,45 @@ export default function App() {
   async function handleAddToCollection(linkId, colId, add) {
     const link = links.find(l => l.id === linkId);
     if (!link) return;
-    const updated = {
-      ...link,
-      collections: add
-        ? [...(link.collections || []), colId]
-        : (link.collections || []).filter(c => c !== colId),
-    };
-    try { await window.storage.set(updated.id, JSON.stringify(updated), true); } catch {}
-    setLinks(prev => prev.map(l => l.id === linkId ? updated : l));
+    const newCollections = add
+      ? [...(link.collections || []), colId]
+      : (link.collections || []).filter(c => c !== colId);
+    const { error } = await supabase
+      .from("links")
+      .update({ collections: newCollections })
+      .eq("id", linkId);
+    if (error) { console.error(error); return; }
+    setLinks(prev => prev.map(l => l.id === linkId ? { ...l, collections: newCollections } : l));
   }
 
   async function handleNewCollection(name, color) {
-    const key = `col${Date.now()}${Math.random().toString(36).slice(2)}`;
-    const col = {
-      id: key,
-      name, color, createdAt: Date.now(),
-    };
-    try { await window.storage.set(key, JSON.stringify(col), true); } catch {}
-    setCollections(prev => [...prev, col].sort((a, b) => a.name.localeCompare(b.name)));
+    const id = `col${Date.now()}${Math.random().toString(36).slice(2)}`;
+    const now = Date.now();
+    const { error } = await supabase.from("collections").insert({
+      id, name, color, created_at: now,
+    });
+    if (error) { console.error(error); showToast("Something went wrong"); return; }
+    setCollections(prev => [...prev, { id, name, color, createdAt: now }].sort((a, b) => a.name.localeCompare(b.name)));
     setModal(null);
     showToast(`"${name}" created`);
   }
 
   async function handleDeleteCollection(colId) {
-    try { await window.storage.delete(colId, true); } catch {}
-    // Remove from all links
-    const updated = links.map(l => ({
+    // Remove collection from all links that have it
+    const affectedLinks = links.filter(l => (l.collections || []).includes(colId));
+    await Promise.all(affectedLinks.map(l =>
+      supabase.from("links").update({
+        collections: l.collections.filter(c => c !== colId)
+      }).eq("id", l.id)
+    ));
+    // Delete the collection itself
+    const { error } = await supabase.from("collections").delete().eq("id", colId);
+    if (error) { console.error(error); return; }
+    setCollections(prev => prev.filter(c => c.id !== colId));
+    setLinks(prev => prev.map(l => ({
       ...l,
       collections: (l.collections || []).filter(c => c !== colId),
-    }));
-    await Promise.all(updated.map(l => window.storage.set(l.id, JSON.stringify(l), true).catch(() => {})));
-    setCollections(prev => prev.filter(c => c.id !== colId));
-    setLinks(updated);
+    })));
     if (activeCol === colId) setActiveCol(null);
     showToast("Collection deleted");
   }
