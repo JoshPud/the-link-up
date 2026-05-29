@@ -92,14 +92,10 @@ async function loadAllCollections() {
   }));
 }
 
-/* ── Logo SVG (We Are Social, all white) ─────────────── */
-function WASLogo({ size = 36 }) {
+/* ── Logo ─────────────────────────────────────────────── */
+function WASLogo() {
   return (
-    <svg width={size * 2.8} height={size} viewBox="0 0 280 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <text x="0" y="78" fontFamily="'Dela Gothic One', sans-serif" fontSize="82" fill="white" letterSpacing="-2">
-        we are social.
-      </text>
-    </svg>
+    <img src="/src/logo.png" alt="We Are Social" style={{ width: "100%", maxWidth: "160px", display: "block" }} />
   );
 }
 
